@@ -1,0 +1,22 @@
+{
+  "name": "youtube-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node build/app.js",
+    "dev": "tsc-watch --onSuccess \"npm start\""
+  },
+  "keywords": [
+    "youtube",
+    "backend"
+  ],
+  "author": "Muhammad Samiullah",
+  "license": "ISC",
+  "dependencies": {
+    "ts-node": "^10.9.2",
+    "tsc-watch": "^6.0.4",
+    "typescript": "^5.3.3"
+  }
+}
