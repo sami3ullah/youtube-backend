@@ -14,7 +14,7 @@ connectDatabase()
     });
     // if all is okay then start the server
     app.listen(PORT, () => {
-      console.log(`Server running at https://localhost:${PORT}`);
+      console.log(`Server running at http://localhost:${PORT}/api/v1`);
     });
   })
   .catch((err) => {

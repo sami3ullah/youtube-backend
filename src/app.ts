@@ -2,10 +2,11 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { DATA_LIMIT } from "./constants";
+import userRouter from "./routes/user.routes";
 
 const app = express();
 
-// middlewares
+// ================= middlewares ================
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN,
@@ -24,5 +25,8 @@ app.use(express.urlencoded({ extended: true, limit: DATA_LIMIT }));
 // for static files
 app.use(express.static("public"));
 app.use(cookieParser());
+
+// ================ Routes ==================
+app.use("/api/v1/users", userRouter);
 
 export default app;
