@@ -5,6 +5,7 @@ import uploadOnCloudinary from "../utils/cloudinary";
 import ApiResponse from "../utils/apiResponse";
 import { AuthRequestType } from "../types";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 // ============== Tokens generation ===============
 const generateAccessAndRefreshTokens = async (userId: string) => {
@@ -184,8 +185,8 @@ export const logoutUser = asyncHandler(async (req: AuthRequestType, res) => {
   await User.findByIdAndUpdate(
     req?.user?._id,
     {
-      $set: {
-        refreshToken: undefined,
+      $unset: {
+        refreshToken: 1, //this remoes the field from the document
       },
     },
     {
@@ -252,6 +253,157 @@ export const getCurrentUser = asyncHandler(
     return res
       .status(200)
       .json(new ApiResponse(200, req.user, "User fetched successfully"));
+  },
+);
+
+export const getUserChannelProfile = asyncHandler(
+  async (req: AuthRequestType, res) => {
+    // getting channel name, same as username
+    const { username } = req.params;
+
+    if (!username?.trim()) {
+      throw new ApiError(400, "Username is required");
+    }
+
+    // aggregate pipeline
+    const channel = await User.aggregate([
+      // 1st pipeline: matching user through username
+      {
+        $match: {
+          username: username?.toLocaleLowerCase(),
+        },
+      },
+      // 2nd pipeline: getting all the subscribers of the channel
+      {
+        $lookup: {
+          // remember the modal was Subscription, but it mongodb turns it into
+          // subscriptions in the database
+          from: "subscriptions",
+          localField: "_id",
+          foreignField: "channel",
+          as: "subscribers",
+        },
+      },
+      // 3rd pipeline: getting all the subscribed channels of the channels
+      {
+        $lookup: {
+          from: "subscriptions",
+          localField: "_id",
+          foreignField: "subscriber",
+          as: "subscribedTo",
+        },
+      },
+      // 4th pipeline: adding fields that we made above + some other fields
+      {
+        $addFields: {
+          subscribersCount: {
+            $size: "$subscribers",
+          },
+          subscribedChannelsCount: {
+            $size: "subscribedTo",
+          },
+          isSubscribed: {
+            $cond: {
+              // checking if the current user exist in subscribers
+              // $subscribers is a field object, means we have all the properties of the modal subscriptions on it
+              if: { $in: [req?.user?._id, "$subscribers.subscriber"] },
+              then: true,
+              else: false,
+            },
+          },
+        },
+      },
+      // 5th pipeline: setting the return fields. 1 means return it
+      {
+        $project: {
+          fullName: 1,
+          username: 1,
+          email: 1,
+          subscribersCount: 1,
+          subscribedChannelsCount: 1,
+          isSubscribed: 1,
+          avatar: 1,
+          coverImage: 1,
+          createdAt: 1,
+        },
+      },
+    ]);
+
+    // checking if channel exist
+    if (!channel?.length) {
+      throw new ApiError(404, "Channel not found");
+    }
+
+    return (
+      res
+        .status(200)
+        // we only have 1 user, so we return first element of the array here
+        .json(new ApiResponse(200, channel[0], "Channel fetched successfully"))
+    );
+  },
+);
+
+export const getWatchHistory = asyncHandler(
+  async (req: AuthRequestType, res) => {
+    const user = await User.aggregate([
+      {
+        $match: {
+          //NOTE: as aggregations are purely written in mongodb syntax and mongoose so we need to make the mongoId, like ObjectId(2332523t3dsf3r3) etc. If it's not mongodb purely then simple _id would have worked, because behind the scenes mongoose converts the _id into ObjectId syntax automatically
+          _id: new mongoose.Types.ObjectId(req?.user?._id),
+        },
+      },
+      // 2nd pipeline for lookup watchHistory
+      {
+        $lookup: {
+          from: "videos",
+          localField: "watchHistory",
+          foreignField: "_id",
+          as: "watchHistory",
+          // subpipeline
+          pipeline: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                  {
+                    $project: {
+                      fullName: 1,
+                      username: 1,
+                      email: 1,
+                      avatar: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            // refining the data, now the data is available to us as "owner" array, but we don't want it as array, because it'll not be easy for frontend app to parse
+            {
+              $addFields: {
+                owner: {
+                  // extracting the first element of array
+                  // $ sign because it's a field
+                  $first: "$owner",
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    // returning response
+    res.status(200).json(
+      new ApiResponse(
+        200,
+        // only returning the watch history instead of full user object
+        // and getting the first element from the array because lookup always returns an array and we always have 1 user
+        user[0].watchHistory,
+        "Watch history fetched successfully",
+      ),
+    );
   },
 );
 
