@@ -256,93 +256,6 @@ export const getCurrentUser = asyncHandler(
   },
 );
 
-export const getUserChannelProfile = asyncHandler(
-  async (req: AuthRequestType, res) => {
-    // getting channel name, same as username
-    const { username } = req.params;
-
-    if (!username?.trim()) {
-      throw new ApiError(400, "Username is required");
-    }
-
-    // aggregate pipeline
-    const channel = await User.aggregate([
-      // 1st pipeline: matching user through username
-      {
-        $match: {
-          username: username?.toLocaleLowerCase(),
-        },
-      },
-      // 2nd pipeline: getting all the subscribers of the channel
-      {
-        $lookup: {
-          // remember the modal was Subscription, but it mongodb turns it into
-          // subscriptions in the database
-          from: "subscriptions",
-          localField: "_id",
-          foreignField: "channel",
-          as: "subscribers",
-        },
-      },
-      // 3rd pipeline: getting all the subscribed channels of the channels
-      {
-        $lookup: {
-          from: "subscriptions",
-          localField: "_id",
-          foreignField: "subscriber",
-          as: "subscribedTo",
-        },
-      },
-      // 4th pipeline: adding fields that we made above + some other fields
-      {
-        $addFields: {
-          subscribersCount: {
-            $size: "$subscribers",
-          },
-          subscribedChannelsCount: {
-            $size: "subscribedTo",
-          },
-          isSubscribed: {
-            $cond: {
-              // checking if the current user exist in subscribers
-              // $subscribers is a field object, means we have all the properties of the modal subscriptions on it
-              if: { $in: [req?.user?._id, "$subscribers.subscriber"] },
-              then: true,
-              else: false,
-            },
-          },
-        },
-      },
-      // 5th pipeline: setting the return fields. 1 means return it
-      {
-        $project: {
-          fullName: 1,
-          username: 1,
-          email: 1,
-          subscribersCount: 1,
-          subscribedChannelsCount: 1,
-          isSubscribed: 1,
-          avatar: 1,
-          coverImage: 1,
-          createdAt: 1,
-        },
-      },
-    ]);
-
-    // checking if channel exist
-    if (!channel?.length) {
-      throw new ApiError(404, "Channel not found");
-    }
-
-    return (
-      res
-        .status(200)
-        // we only have 1 user, so we return first element of the array here
-        .json(new ApiResponse(200, channel[0], "Channel fetched successfully"))
-    );
-  },
-);
-
 export const getWatchHistory = asyncHandler(
   async (req: AuthRequestType, res) => {
     const user = await User.aggregate([
@@ -403,6 +316,93 @@ export const getWatchHistory = asyncHandler(
         user[0].watchHistory,
         "Watch history fetched successfully",
       ),
+    );
+  },
+);
+
+export const getUserChannelProfile = asyncHandler(
+  async (req: AuthRequestType, res) => {
+    // getting channel name, same as username
+    const { username } = req.params;
+
+    if (!username?.trim()) {
+      throw new ApiError(400, "Username is required");
+    }
+
+    // aggregate pipeline
+    const channel = await User.aggregate([
+      // 1st pipeline: matching user through username
+      {
+        $match: {
+          username: username?.toLocaleLowerCase(),
+        },
+      },
+      // 2nd pipeline: getting all the subscribers of the channel
+      {
+        $lookup: {
+          // remember the modal was Subscription, but it mongodb turns it into
+          // subscriptions in the database
+          from: "subscriptions",
+          localField: "_id",
+          foreignField: "channel",
+          as: "subscribers",
+        },
+      },
+      // 3rd pipeline: getting all the subscribed channels of the channels
+      {
+        $lookup: {
+          from: "subscriptions",
+          localField: "_id",
+          foreignField: "subscriber",
+          as: "subscribedTo",
+        },
+      },
+      // 4th pipeline: adding fields that we made above + some other fields
+      {
+        $addFields: {
+          subscribersCount: {
+            $size: "$subscribers",
+          },
+          subscribedChannelsCount: {
+            $size: "$subscribedTo",
+          },
+          isSubscribed: {
+            $cond: {
+              // checking if the current user exist in subscribers
+              // $subscribers is a field object, means we have all the properties of the modal subscriptions on it
+              if: { $in: [req?.user?._id, "$subscribers.subscriber"] },
+              then: true,
+              else: false,
+            },
+          },
+        },
+      },
+      // 5th pipeline: setting the return fields. 1 means return it
+      {
+        $project: {
+          fullName: 1,
+          username: 1,
+          email: 1,
+          subscribersCount: 1,
+          subscribedChannelsCount: 1,
+          isSubscribed: 1,
+          avatar: 1,
+          coverImage: 1,
+          createdAt: 1,
+        },
+      },
+    ]);
+
+    // checking if channel exist
+    if (!channel?.length) {
+      throw new ApiError(404, "Channel not found");
+    }
+
+    return (
+      res
+        .status(200)
+        // we only have 1 user, so we return first element of the array here
+        .json(new ApiResponse(200, channel[0], "Channel fetched successfully"))
     );
   },
 );

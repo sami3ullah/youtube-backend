@@ -50,5 +50,9 @@ userRouter
     multerFileUpload.single("coverImage"),
     updateUserCoverImage,
   );
+userRouter.route("/history").get(verifyJWT, getWatchHistory);
+userRouter
+  .route("/channel-profile/:username")
+  .get(verifyJWT, getUserChannelProfile);
 
 export default userRouter;
