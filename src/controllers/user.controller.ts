@@ -83,7 +83,7 @@ export const registerUser = asyncHandler(async (req, res) => {
   const avatarLocalPath = files?.avatar[0]?.path;
   let coverImageLocalPath = "";
 
-  // if cover image exist
+  // if cover image exist, checking below checks because coverImage is not required
   if (
     files &&
     Array.isArray(files?.coverImage) &&
